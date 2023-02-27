@@ -1,14 +1,14 @@
 // Base configuration
 const config = {
-	"port": "3000",
-	"origin": "https://localhost:3000",
+	"port": "3002",
+	"origin": "https://localhost:3002",
 	"rpId": "localhost",
 	"rpName": "Webauthn Skeleton",
 	"mode": "development",
 	"baseUrl": "", // Uses origin as default
 	"cookieMaxAge": 24 * 60 * 60 * 1000, // 24 hours
 	"challengeTimeoutMs": 90 * 1000, // 90 seconds
-	"loginTokenExpireSeconds": 60	
+	"loginTokenExpireSeconds": 60
 };
 
 // Environment overrides (normally no need to touch this)

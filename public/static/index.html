@@ -9,7 +9,7 @@
 <body>
 
     <div id="header">
-        <h1>Web Authentication API demo</h1>   
+        <h1>Web Authentication API demo</h1>
     </div>
 
     <!-- View when logged out -->
@@ -99,13 +99,9 @@
         });
     </script>
 
-    <!-- Internals-->
-    <script src="js/utils.js"></script>
-    <script src="js/view.js"></script>
-    <script src="js/webauthn.auth.js"></script>
-
     <!-- Check if already logged in -->
-    <script>
+    <script type="module">
+        import { checkIfLoggedIn, loadMainContainer } from './js/view.mjs'
         $(document).ready(() => {
             checkIfLoggedIn()
             .then((response) => {
