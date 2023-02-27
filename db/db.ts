@@ -19,13 +19,26 @@ interface IUser extends Document {
     authenticators?: IAuthenticator[];
     oneTimeToken?: IToken;
     recoveryEmail?: string;
-}   
+}
 
 // https://deno.land/x/filedb@0.0.6
 const database = new FileDB({ rootDir: "./db/data", isAutosave: true });
 
-// Example 
+// Example
 // const users = await database.getCollection<IUser>("users"); // implicitly create and get User collection
 
 export { database };
 export type { IUser, IAuthenticator };
+
+export async function getUser(userName: string) {
+    const users = await database.getCollection<IUser>("users");
+    return users.findOne({ userName });
+}
+export async function updateUser(userName: string, updates: IUser) {
+    const users = await database.getCollection<IUser>("users");
+    return users.updateOne({ userName }, updates);
+}
+export async function createUser(user: IUser) {
+    const users = await database.getCollection<IUser>("users");
+    return users.insertOne(user);
+}

@@ -1,10 +1,10 @@
-/* global base64, loadMainContainer, preformatMakeCredReq, preformatGetAssertReq, publicKeyCredentialToJSON */
-/* exported register, login */
 import {
   preformatGetAssertReq,
   preformatMakeCredReq,
   publicKeyCredentialToJSON,
 } from "./utils.mjs";
+import { base64 } from "https://deno.land/x/b64@1.0.20/src/base64.js";
+
 
 const getMakeCredentialsChallenge = (formBody, additional) => {
   return fetch(additional ? "webauthn/add" : "webauthn/register", {

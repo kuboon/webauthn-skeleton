@@ -1,5 +1,5 @@
 import { Router } from "../deps.ts";
-import { database, IUser } from "../db/db.ts";
+import { getUser } from "../db/db.ts";
 import { token } from "../utils/token.ts";
 
 const router = new Router ();
@@ -47,14 +47,13 @@ router.get("/personalInfo", async (request, response) => {
 		});
 	} else {
 		const username = await session.get("username");
-		const users = await database.getCollection<IUser>("users");
 		let tokenInfo = undefined;
-		const userInfo = await users.findOne({ userName: username });
-		if (userInfo.oneTimeToken) {            
+		const userInfo = await getUser(username);
+		if (userInfo.oneTimeToken) {
 			if (userInfo.oneTimeToken.expires > new Date().getTime()) {
-				tokenInfo = { 
+				tokenInfo = {
 					token: token.encode(userInfo.oneTimeToken.token),
-					expires: userInfo.oneTimeToken.expires 
+					expires: userInfo.oneTimeToken.expires
 				};
 			} else {
 				tokenInfo = undefined;

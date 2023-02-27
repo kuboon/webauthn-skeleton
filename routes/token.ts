@@ -1,7 +1,7 @@
 import { Router } from "../deps.ts";
 import { config } from "../config.ts";
 import { token } from "../utils/token.ts";
-import { database, IUser } from "../db/db.ts";
+import { getUser, updateUser } from "../db/db.ts";
 import { username } from "../utils/username.ts";
 
 const router = new Router ();
@@ -31,8 +31,7 @@ router.get("/login/:userName/:oneTimeToken", async (request, response) => {
 	}
 
 	// Check that user exists
-	const users = await database.getCollection<IUser>("users");
-	const userInfo = await users.findOne({ userName: usernameClean });
+	const userInfo = await getUser(usernameClean);
 	if(!userInfo || !userInfo.registered) {
 		return response.json({
 			"status": "failed",
@@ -56,7 +55,7 @@ router.get("/login/:userName/:oneTimeToken", async (request, response) => {
 		await session.set("loggedIn", true);
 
 		// Remove token
-		await users.updateOne({userName: usernameClean}, {oneTimeToken: undefined});
+		await updateUser(usernameClean, {oneTimeToken: undefined});
 
 		// Success
 		return response.redirect(config.baseUrl);
@@ -84,14 +83,13 @@ router.get("/generate", async (request, response) => {
 		const
 			username = await session.get("username"),
 			tokenValidator = token.generate(username, config.loginTokenExpireSeconds*1000);
-		
+
 		if (tokenValidator) {
 
 			const tokenEncoded = token.encode(tokenValidator.token);
 
-			const users = await database.getCollection<IUser>("users");
-			await users.updateOne({userName: username}, {oneTimeToken: tokenValidator});
-	
+			await updateUser(username, {oneTimeToken: tokenValidator});
+
 			response.json({
 				"status": "ok",
 				"token": tokenEncoded,
@@ -100,7 +98,7 @@ router.get("/generate", async (request, response) => {
 			});
 
 		}
-			
+
 	}
 });
 

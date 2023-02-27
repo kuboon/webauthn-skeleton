@@ -1,5 +1,4 @@
-/* global base64 */
-/* exported preformatGetAssertReq, publicKeyCredentialToJSON, preformatMakeCredReq */
+import { base64 } from "https://deno.land/x/b64@1.0.20/src/base64.js";
 
 /**
  * Converts PublicKeyCredential into serialised JSON

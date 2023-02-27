@@ -1,7 +1,7 @@
 
 import { Router } from "../deps.ts";
 import { config } from "../config.ts";
-import { database, IUser, IAuthenticator } from "../db/db.ts";
+import { IAuthenticator, getUser, createUser, updateUser } from "../db/db.ts";
 import { username } from "../utils/username.ts";
 import { base64 } from "../deps.ts";
 import { Fido2, IAssertionExpectations } from "../utils/fido2.ts";
@@ -29,7 +29,7 @@ router.post("/register", async (request, response) => {
 	// Get session
 	// @ts-ignore: session exists
 	const session = request.session;
-	
+
 	if(!request.body || !request.body.username || !request.body.name) {
 		response.json({
 			"status": "failed",
@@ -47,7 +47,7 @@ router.post("/register", async (request, response) => {
 			"message": "Invalid username!"
 		});
 	}
-    
+
 	if ( usernameClean.length > userNameMaxLenght ) {
 		return response.json({
 			"status": "failed",
@@ -55,8 +55,7 @@ router.post("/register", async (request, response) => {
 		});
 	}
 
-	const users = await database.getCollection<IUser>("users");
-	const userInfo = await users.findOne({ userName: usernameClean });
+	const userInfo = await getUser(usernameClean);
 
 	if(userInfo && userInfo.registered) {
 		return response.json({
@@ -67,7 +66,7 @@ router.post("/register", async (request, response) => {
 
 	const id = randomBase64URLBuffer(32);
 
-	await users.insertOne({
+	await createUser({
 		userName: usernameClean,
 		name: name,
 		registered: false,
@@ -93,7 +92,7 @@ router.post("/add", async (request, response) => {
 	// Get session
 	// @ts-ignore: session exists
 	const session = request.session;
-	
+
 	if(!request.body) {
 		return response.json({
 			"status": "failed",
@@ -111,16 +110,15 @@ router.post("/add", async (request, response) => {
 	const
 		usernameClean = username.clean(await session.get("username"));
 
-	
+
 	if(!usernameClean) {
 		return response.json({
 			"status": "failed",
 			"message": "Invalid username!"
 		});
 	}
-	
-	const users = await database.getCollection<IUser>("users");
-	const userInfo = await users.findOne({ userName: usernameClean });
+
+	const userInfo = await getUser(usernameClean)
 
 	const challengeMakeCred = await f2l.registration(usernameClean, usernameClean, userInfo.id || "");
 
@@ -128,9 +126,9 @@ router.post("/add", async (request, response) => {
 	await session.set("challenge", challengeMakeCred.challenge);
 
 	// Exclude existing credentials
-	challengeMakeCred.excludeCredentials = userInfo.authenticators?.map((e) => { 
+	challengeMakeCred.excludeCredentials = userInfo.authenticators?.map((e) => {
 		return { id: e.credId, type: e.type };
-	}); 
+	});
 	// Respond with credentials
 	response.json(challengeMakeCred);
 });
@@ -148,11 +146,16 @@ router.post("/login", async (request, response) => {
 	const session = request.session;
 
 	const usernameClean = username.clean(request.body.username);
+	if(!usernameClean) {
+		return response.json({
+			"status": "failed",
+			"message": "Invalid username!"
+		});
+	}
 
-	const users = await database.getCollection<IUser>("users");
-	const userInfo = await users.findOne({ userName: usernameClean });
+	const userInfo = await getUser(usernameClean);
 
-	if(!userInfo || !userInfo.registered || !usernameClean) {
+	if(!userInfo || !userInfo.registered) {
 		return response.json({
 			"status": "failed",
 			"message": `User ${usernameClean} does not exist!`
@@ -207,8 +210,7 @@ router.post("/response", async (request, response) => {
 
 	// Get user info
 	const usernameClean = username.clean(await session.get("username"));
-	const users = await database.getCollection<IUser>("users");
-	const userInfo = await users.findOne({ userName: usernameClean });
+	const userInfo = await getUser(usernameClean!);
 
 	const webauthnResp = request.body;
 	if(webauthnResp.response.attestationObject !== undefined) {
@@ -216,7 +218,7 @@ router.post("/response", async (request, response) => {
 		webauthnResp.rawId = base64.toArrayBuffer(webauthnResp.rawId, true);
 		webauthnResp.response.attestationObject = base64.toArrayBuffer(webauthnResp.response.attestationObject, true);
 		const result = await f2l.attestation(webauthnResp, config.origin, await session.get("challenge"));
-        
+
 		const token : IAuthenticator = {
 			credId: base64.fromArrayBuffer(result.authnrData.get("credId"), true),
 			publicKey: result.authnrData.get("credentialPublicKeyPem"),
@@ -225,10 +227,10 @@ router.post("/response", async (request, response) => {
 			counter: result.authnrData.get("counter"),
 			created: new Date(),
 		};
-		
+
 		const newAuthenticators = userInfo.authenticators ? [...userInfo.authenticators] : [];
 		newAuthenticators.push(token);
-		users.updateOne({userName: usernameClean}, { authenticators: newAuthenticators, registered: true });
+		updateUser(usernameClean!, { authenticators: newAuthenticators, registered: true });
 
 		await session.set("loggedIn", true);
 
@@ -244,7 +246,7 @@ router.post("/response", async (request, response) => {
 		webauthnResp.rawId = base64.toArrayBuffer(webauthnResp.rawId, true);
 		webauthnResp.response.userHandle = webauthnResp.rawId;
 
-		let winningAuthenticator;            
+		let winningAuthenticator;
 		for(const authrIdx in userInfo.authenticators) {
 			const authr = userInfo.authenticators[parseInt(authrIdx, 10)];
 			try {
@@ -260,12 +262,12 @@ router.post("/response", async (request, response) => {
 				const result = await f2l.assertion(webauthnResp, assertionExpectations);
 
 				winningAuthenticator = result;
-				
+
 				// Update authenticators
 				userInfo.authenticators[parseInt(authrIdx, 10)].counter = result.authnrData.get("counter");
-				await users.updateOne({userName: userInfo.userName}, { authenticators: userInfo.authenticators});
+				await updateUser(userInfo.userName!, { authenticators: userInfo.authenticators});
 				break;
-        
+
 			} catch (_e) {
 				console.error(_e);
 			}
